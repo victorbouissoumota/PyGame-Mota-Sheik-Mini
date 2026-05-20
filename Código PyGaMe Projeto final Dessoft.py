@@ -1,25 +1,26 @@
 """
 Space Shooter - Jogo de nave estilo Shoot 'em Up.
-
+ 
 Desenvolvido em Python com PyGame para o Projeto Final de Design de Software - Insper.
-
+ 
 Execute este arquivo para iniciar o jogo:
     python main.py
 """
-
+ 
 import pygame
 import random
 import math
-
+import os
+ 
 # =============================================================================
 # CONFIGURAÇÕES
 # =============================================================================
-
+ 
 SCREEN_WIDTH = 480
 SCREEN_HEIGHT = 700
 TITLE = "Space Shooter"
 FPS = 60
-
+ 
 # Cores (R, G, B)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -35,31 +36,31 @@ LIGHT_BLUE = (100, 200, 255)
 GRAY = (150, 150, 150)
 DARK_RED = (150, 0, 0)
 PURPLE = (150, 0, 255)
-
+ 
 # Jogador
 PLAYER_SPEED = 5
 PLAYER_WIDTH = 40
 PLAYER_HEIGHT = 50
 PLAYER_LIVES = 3
 PLAYER_INVINCIBLE_TIME = 1500
-
+ 
 # Tiros
 BULLET_SPEED = -8
 BULLET_WIDTH = 4
 BULLET_HEIGHT = 12
 BULLET_COLOR = YELLOW
 SHOOT_DELAY = 250
-
+ 
 # Inimigos
 ENEMY_WIDTH = 36
 ENEMY_HEIGHT = 36
-
+ 
 # Explosões
 EXPLOSION_PARTICLES = 15
 PARTICLE_MIN_SPEED = 1
 PARTICLE_MAX_SPEED = 5
 PARTICLE_LIFETIME = 500
-
+ 
 # Power-ups
 POWERUP_SPEED = 2
 POWERUP_SIZE = 24
@@ -67,11 +68,11 @@ POWERUP_SPAWN_CHANCE = 25
 TRIPLE_SHOT_DURATION = 5000
 SHIELD_DURATION = 6000
 BOMB_FLASH_DURATION = 300
-
+ 
 # Waves
 WAVE_TRANSITION_DURATION = 3000
 BOSS_EVERY_N_WAVES = 5
-
+ 
 # Boss
 BOSS_WIDTH = 80
 BOSS_HEIGHT = 60
@@ -80,93 +81,188 @@ BOSS_HP_PER_LEVEL = 10
 BOSS_SPEED = 2
 BOSS_SHOOT_DELAY = 800
 BOSS_BULLET_SPEED = 5
-
+ 
 # Estados do jogo
 STATE_MENU = "menu"
 STATE_INSTRUCTIONS = "instructions"
 STATE_PLAYING = "playing"
 STATE_GAME_OVER = "game_over"
-
+ 
 # Parallax / Estrelas
 STAR_COUNT = 80
 PARALLAX_LAYERS = 3
-
-
+ 
+# Caminhos de áudio
+SOUNDS_DIR = os.path.join(os.path.dirname(__file__), "assets", "sounds")
+MUSIC_DIR = os.path.join(os.path.dirname(__file__), "assets", "music")
+ 
+ 
+# =============================================================================
+# SISTEMA DE ÁUDIO
+# =============================================================================
+ 
+class SoundManager:
+    """Gerencia todos os sons e músicas do jogo.
+ 
+    Carrega os arquivos de áudio da pasta assets/sounds/ e assets/music/.
+    Se algum arquivo não for encontrado, o jogo continua sem aquele som.
+ 
+    Attributes:
+        sounds: Dicionário com os efeitos sonoros carregados.
+        music_loaded: Flag que indica se a música foi carregada.
+    """
+ 
+    def __init__(self):
+        """Inicializa o gerenciador de sons carregando os arquivos."""
+        self.sounds = {}
+        self.music_loaded = False
+ 
+        # Lista de sons esperados: (nome_interno, nome_arquivo)
+        sound_files = [
+            ("shoot", "shoot.wav"),
+            ("explosion", "explosion.wav"),
+            ("player_hit", "player_hit.wav"),
+            ("powerup", "powerup.wav"),
+            ("bomb", "bomb.wav"),
+            ("boss_hit", "boss_hit.wav"),
+            ("boss_death", "boss_death.wav"),
+            ("menu_select", "menu_select.wav"),
+            ("menu_confirm", "menu_confirm.wav"),
+            ("game_over", "game_over.wav"),
+            ("wave_start", "wave_start.wav"),
+        ]
+ 
+        for name, filename in sound_files:
+            path = os.path.join(SOUNDS_DIR, filename)
+            if os.path.exists(path):
+                try:
+                    self.sounds[name] = pygame.mixer.Sound(path)
+                    # Ajusta volumes padrão
+                    if name == "shoot":
+                        self.sounds[name].set_volume(0.3)
+                    elif name == "explosion":
+                        self.sounds[name].set_volume(0.4)
+                    elif name == "bomb":
+                        self.sounds[name].set_volume(0.6)
+                    elif name in ("menu_select", "menu_confirm"):
+                        self.sounds[name].set_volume(0.5)
+                    else:
+                        self.sounds[name].set_volume(0.5)
+                except pygame.error:
+                    print(f"Aviso: não foi possível carregar {filename}")
+ 
+        # Tenta carregar música de fundo
+        music_path = os.path.join(MUSIC_DIR, "background.ogg")
+        if not os.path.exists(music_path):
+            music_path = os.path.join(MUSIC_DIR, "background.wav")
+        if not os.path.exists(music_path):
+            music_path = os.path.join(MUSIC_DIR, "background.mp3")
+ 
+        if os.path.exists(music_path):
+            try:
+                pygame.mixer.music.load(music_path)
+                pygame.mixer.music.set_volume(0.3)
+                self.music_loaded = True
+            except pygame.error:
+                print("Aviso: não foi possível carregar a música de fundo")
+ 
+    def play(self, name):
+        """Toca um efeito sonoro pelo nome.
+ 
+        Args:
+            name: Nome interno do som (ex: 'shoot', 'explosion').
+        """
+        if name in self.sounds:
+            self.sounds[name].play()
+ 
+    def play_music(self):
+        """Inicia a música de fundo em loop."""
+        if self.music_loaded:
+            pygame.mixer.music.play(-1)  # -1 = loop infinito
+ 
+    def stop_music(self):
+        """Para a música de fundo."""
+        if self.music_loaded:
+            pygame.mixer.music.stop()
+ 
+    def pause_music(self):
+        """Pausa a música de fundo."""
+        if self.music_loaded:
+            pygame.mixer.music.pause()
+ 
+    def unpause_music(self):
+        """Retoma a música de fundo."""
+        if self.music_loaded:
+            pygame.mixer.music.unpause()
+ 
+ 
 # =============================================================================
 # SISTEMA DE FUNDO (PARALLAX + ESTRELAS)
 # =============================================================================
-
+ 
 class Star:
     """Estrela animada para o fundo.
-
+ 
     Attributes:
         x: Posição horizontal.
         y: Posição vertical.
         speed: Velocidade de descida.
-        size: Tamanho da estrela.
+        size: Tamanho.
         brightness: Brilho (0-255).
-        layer: Camada de parallax (0 = mais longe, mais lento).
+        layer: Camada de parallax.
     """
-
+ 
     def __init__(self, layer=None):
-        """Cria uma estrela em posição aleatória.
-
+        """Cria uma estrela.
+ 
         Args:
             layer: Camada de parallax (None = aleatória).
         """
         self.layer = layer if layer is not None else random.randint(0, PARALLAX_LAYERS - 1)
         self.x = random.randint(0, SCREEN_WIDTH)
         self.y = random.randint(0, SCREEN_HEIGHT)
-
-        # Estrelas mais próximas (layer maior) são maiores, mais brilhantes e rápidas
         layer_ratio = (self.layer + 1) / PARALLAX_LAYERS
         self.speed = 0.3 + layer_ratio * 2.0
         self.size = max(1, int(layer_ratio * 3))
         self.brightness = int(80 + layer_ratio * 175)
-
+ 
     def update(self):
-        """Move a estrela para baixo e reposiciona se sair da tela."""
+        """Move a estrela."""
         self.y += self.speed
         if self.y > SCREEN_HEIGHT:
             self.y = random.randint(-10, 0)
             self.x = random.randint(0, SCREEN_WIDTH)
-
+ 
     def draw(self, screen):
-        """Desenha a estrela na tela.
-
+        """Desenha a estrela.
+ 
         Args:
             screen: Superfície de desenho.
         """
         color = (self.brightness, self.brightness, self.brightness)
         pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)
-
-
+ 
+ 
 class Nebula:
-    """Nuvem de nebulosa que passa lentamente ao fundo.
-
-    Cria um efeito de profundidade com manchas coloridas translúcidas
-    que se movem em velocidades diferentes.
-
+    """Nuvem de nebulosa no fundo.
+ 
     Attributes:
         x: Posição horizontal.
         y: Posição vertical.
-        width: Largura da nebulosa.
-        height: Altura da nebulosa.
+        width: Largura.
+        height: Altura.
         speed: Velocidade de descida.
-        color: Cor base da nebulosa.
+        color: Cor base.
         surface: Superfície pré-renderizada.
     """
-
+ 
     COLORS = [
-        (30, 0, 60),    # Roxo escuro
-        (0, 20, 50),    # Azul escuro
-        (40, 0, 20),    # Vinho escuro
-        (0, 30, 30),    # Ciano escuro
-        (20, 20, 0),    # Amarelo escuro
+        (30, 0, 60), (0, 20, 50), (40, 0, 20),
+        (0, 30, 30), (20, 20, 0),
     ]
-
+ 
     def __init__(self):
-        """Cria uma nebulosa em posição aleatória."""
+        """Cria uma nebulosa."""
         self.width = random.randint(100, 250)
         self.height = random.randint(60, 150)
         self.x = random.randint(-50, SCREEN_WIDTH)
@@ -174,18 +270,15 @@ class Nebula:
         self.speed = random.uniform(0.1, 0.4)
         self.color = random.choice(self.COLORS)
         self.surface = self._create_surface()
-
+ 
     def _create_surface(self):
-        """Cria a superfície translúcida da nebulosa.
-
+        """Cria superfície da nebulosa.
+ 
         Returns:
-            pygame.Surface: Superfície da nebulosa com transparência.
+            pygame.Surface: Superfície com transparência.
         """
         surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-
-        # Desenha várias elipses sobrepostas para criar uma forma orgânica
-        num_blobs = random.randint(3, 6)
-        for _ in range(num_blobs):
+        for _ in range(random.randint(3, 6)):
             blob_x = random.randint(10, self.width - 10)
             blob_y = random.randint(10, self.height - 10)
             blob_w = random.randint(30, self.width // 2)
@@ -195,83 +288,73 @@ class Nebula:
             blob_surface = pygame.Surface((blob_w, blob_h), pygame.SRCALPHA)
             pygame.draw.ellipse(blob_surface, blob_color, (0, 0, blob_w, blob_h))
             surface.blit(blob_surface, (blob_x - blob_w // 2, blob_y - blob_h // 2))
-
         return surface
-
+ 
     def update(self):
-        """Move a nebulosa para baixo e reposiciona se sair da tela."""
+        """Move a nebulosa."""
         self.y += self.speed
         if self.y > SCREEN_HEIGHT:
             self.y = random.randint(-self.height * 2, -self.height)
             self.x = random.randint(-50, SCREEN_WIDTH)
             self.color = random.choice(self.COLORS)
             self.surface = self._create_surface()
-
+ 
     def draw(self, screen):
-        """Desenha a nebulosa na tela.
-
+        """Desenha a nebulosa.
+ 
         Args:
             screen: Superfície de desenho.
         """
         screen.blit(self.surface, (int(self.x), int(self.y)))
-
-
+ 
+ 
 class Background:
-    """Gerencia o fundo do jogo com parallax scrolling.
-
-    Combina estrelas em múltiplas camadas e nebulosas para criar
-    sensação de profundidade e movimento espacial.
-
+    """Fundo com parallax scrolling.
+ 
     Attributes:
-        stars: Lista de estrelas em diferentes camadas.
-        nebulae: Lista de nebulosas.
+        stars: Estrelas em camadas.
+        nebulae: Nebulosas.
     """
-
+ 
     def __init__(self):
-        """Inicializa o fundo com estrelas e nebulosas."""
-        # Distribui estrelas entre as camadas
+        """Inicializa o fundo."""
         self.stars = []
         stars_per_layer = STAR_COUNT // PARALLAX_LAYERS
         for layer in range(PARALLAX_LAYERS):
             for _ in range(stars_per_layer):
                 self.stars.append(Star(layer))
-
-        # Nebulosas (poucas, bem ao fundo)
         self.nebulae = [Nebula() for _ in range(4)]
-
+ 
     def update(self):
-        """Atualiza todas as estrelas e nebulosas."""
+        """Atualiza estrelas e nebulosas."""
         for nebula in self.nebulae:
             nebula.update()
         for star in self.stars:
             star.update()
-
+ 
     def draw(self, screen):
-        """Desenha o fundo completo: nebulosas primeiro, depois estrelas.
-
+        """Desenha o fundo.
+ 
         Args:
             screen: Superfície de desenho.
         """
-        # Nebulosas atrás de tudo
         for nebula in self.nebulae:
             nebula.draw(screen)
-
-        # Estrelas por camada (de trás pra frente)
         for layer in range(PARALLAX_LAYERS):
             for star in self.stars:
                 if star.layer == layer:
                     star.draw(screen)
-
-
+ 
+ 
 # =============================================================================
 # SISTEMA DE WAVES
 # =============================================================================
-
+ 
 class WaveManager:
-    """Gerencia as ondas de inimigos com dificuldade progressiva.
-
+    """Gerencia ondas de inimigos.
+ 
     Attributes:
-        wave_number: Número da wave atual.
+        wave_number: Wave atual.
         enemies_to_spawn: Inimigos para spawnar.
         enemies_alive: Inimigos vivos.
         spawn_delay: Intervalo entre spawns.
@@ -281,11 +364,11 @@ class WaveManager:
         max_enemies: Máximo simultâneo.
         transitioning: Flag de transição.
         transition_start: Timestamp da transição.
-        is_boss_wave: Flag de wave de boss.
-        boss_spawned: Flag de boss criado.
-        boss_defeated: Flag de boss derrotado.
+        is_boss_wave: Flag de boss.
+        boss_spawned: Boss criado.
+        boss_defeated: Boss derrotado.
     """
-
+ 
     def __init__(self):
         """Inicializa o gerenciador."""
         self.wave_number = 0
@@ -301,18 +384,16 @@ class WaveManager:
         self.is_boss_wave = False
         self.boss_spawned = False
         self.boss_defeated = False
-
+ 
     def start_next_wave(self):
-        """Inicia a próxima wave."""
+        """Inicia próxima wave."""
         self.wave_number += 1
         self.transitioning = True
         self.transition_start = pygame.time.get_ticks()
         self.last_spawn = pygame.time.get_ticks()
-
         self.is_boss_wave = (self.wave_number % BOSS_EVERY_N_WAVES == 0)
         self.boss_spawned = False
         self.boss_defeated = False
-
         if self.is_boss_wave:
             self.enemies_to_spawn = 0
             self.enemies_alive = 1
@@ -323,43 +404,42 @@ class WaveManager:
             self.enemy_min_speed = min(2 + (self.wave_number * 0.3), 6)
             self.enemy_max_speed = min(5 + (self.wave_number * 0.4), 10)
             self.max_enemies = min(8 + self.wave_number, 15)
-
+ 
     def is_wave_complete(self):
-        """Verifica se a wave acabou.
-
+        """Verifica se wave acabou.
+ 
         Returns:
             bool: True se completa.
         """
         if self.is_boss_wave:
             return self.boss_defeated
         return self.enemies_to_spawn <= 0 and self.enemies_alive <= 0
-
+ 
     def is_transitioning(self):
-        """Verifica se está em transição.
-
+        """Verifica transição.
+ 
         Returns:
             bool: True se em transição.
         """
         if self.transitioning:
-            elapsed = pygame.time.get_ticks() - self.transition_start
-            if elapsed >= WAVE_TRANSITION_DURATION:
+            if pygame.time.get_ticks() - self.transition_start >= WAVE_TRANSITION_DURATION:
                 self.transitioning = False
         return self.transitioning
-
+ 
     def enemy_killed(self):
         """Registra inimigo eliminado."""
         self.enemies_alive -= 1
-
+ 
     def enemy_escaped(self):
         """Registra inimigo que escapou."""
         self.enemies_alive -= 1
-
+ 
     def should_spawn(self, current_enemy_count):
-        """Verifica se deve spawnar inimigo.
-
+        """Verifica se deve spawnar.
+ 
         Args:
             current_enemy_count: Inimigos na tela.
-
+ 
         Returns:
             bool: True se deve spawnar.
         """
@@ -373,10 +453,10 @@ class WaveManager:
             self.enemies_to_spawn -= 1
             return True
         return False
-
+ 
     def should_spawn_boss(self):
-        """Verifica se deve spawnar o boss.
-
+        """Verifica se deve spawnar boss.
+ 
         Returns:
             bool: True se deve spawnar.
         """
@@ -384,43 +464,38 @@ class WaveManager:
             self.boss_spawned = True
             return True
         return False
-
+ 
     def get_boss_level(self):
-        """Retorna o nível do boss.
-
+        """Retorna nível do boss.
+ 
         Returns:
-            int: Nível do boss.
+            int: Nível.
         """
         return self.wave_number // BOSS_EVERY_N_WAVES
-
-
+ 
+ 
 # =============================================================================
 # SPRITES
 # =============================================================================
-
+ 
 class Player(pygame.sprite.Sprite):
-    """Nave controlada pelo jogador.
-
+    """Nave do jogador.
+ 
     Attributes:
-        image: Superfície da nave.
-        rect: Retângulo de posição.
-        speed: Velocidade de movimentação.
-        last_shot: Timestamp do último tiro.
-        lives: Vidas restantes.
-        invincible: Flag de invencibilidade.
-        invincible_timer: Timestamp da invencibilidade.
-        triple_shot: Flag de tiro triplo.
-        triple_shot_timer: Timestamp do tiro triplo.
-        shield: Flag de escudo.
-        shield_timer: Timestamp do escudo.
+        speed: Velocidade.
+        lives: Vidas.
+        invincible: Invencibilidade.
+        triple_shot: Tiro triplo.
+        shield: Escudo.
     """
-
-    def __init__(self, bullet_group, all_sprites_group):
+ 
+    def __init__(self, bullet_group, all_sprites_group, sound_manager):
         """Inicializa a nave.
-
+ 
         Args:
             bullet_group: Grupo de tiros.
             all_sprites_group: Grupo geral.
+            sound_manager: Gerenciador de sons.
         """
         super().__init__()
         self.original_image = self._create_ship_image()
@@ -431,6 +506,7 @@ class Player(pygame.sprite.Sprite):
         self.speed = PLAYER_SPEED
         self.bullet_group = bullet_group
         self.all_sprites_group = all_sprites_group
+        self.sound_manager = sound_manager
         self.last_shot = 0
         self.lives = PLAYER_LIVES
         self.invincible = False
@@ -439,34 +515,30 @@ class Player(pygame.sprite.Sprite):
         self.triple_shot_timer = 0
         self.shield = False
         self.shield_timer = 0
-
+ 
     def _create_ship_image(self):
         """Cria sprite da nave.
-
+ 
         Returns:
             pygame.Surface: Superfície da nave.
         """
         surface = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT), pygame.SRCALPHA)
-
         body_points = [
             (PLAYER_WIDTH // 2, 0),
             (0, PLAYER_HEIGHT),
             (PLAYER_WIDTH, PLAYER_HEIGHT),
         ]
         pygame.draw.polygon(surface, CYAN, body_points)
-
         detail_points = [
             (PLAYER_WIDTH // 2, 8),
             (PLAYER_WIDTH // 2 - 8, PLAYER_HEIGHT - 5),
             (PLAYER_WIDTH // 2 + 8, PLAYER_HEIGHT - 5),
         ]
         pygame.draw.polygon(surface, DARK_GRAY, detail_points)
-
         pygame.draw.circle(surface, WHITE, (PLAYER_WIDTH // 2, 20), 5)
         pygame.draw.rect(surface, YELLOW, (PLAYER_WIDTH // 2 - 5, PLAYER_HEIGHT - 8, 10, 8))
-
         return surface
-
+ 
     def update(self):
         """Atualiza posição, invencibilidade e power-ups."""
         keys = pygame.key.get_pressed()
@@ -480,15 +552,14 @@ class Player(pygame.sprite.Sprite):
             dy = -self.speed
         if keys[pygame.K_DOWN] or keys[pygame.K_s]:
             dy = self.speed
-
         self.rect.x += dx
         self.rect.y += dy
         self._clamp_to_screen()
         self._update_invincibility()
         self._update_powerups()
-
+ 
     def _update_invincibility(self):
-        """Gerencia invencibilidade e piscar."""
+        """Gerencia invencibilidade."""
         if self.invincible:
             elapsed = pygame.time.get_ticks() - self.invincible_timer
             if elapsed >= PLAYER_INVINCIBLE_TIME:
@@ -499,7 +570,7 @@ class Player(pygame.sprite.Sprite):
                     self.image = self.original_image.copy()
                 else:
                     self.image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT), pygame.SRCALPHA)
-
+ 
     def _update_powerups(self):
         """Verifica expiração de power-ups."""
         now = pygame.time.get_ticks()
@@ -507,20 +578,20 @@ class Player(pygame.sprite.Sprite):
             self.triple_shot = False
         if self.shield and now - self.shield_timer >= SHIELD_DURATION:
             self.shield = False
-
+ 
     def activate_triple_shot(self):
         """Ativa tiro triplo."""
         self.triple_shot = True
         self.triple_shot_timer = pygame.time.get_ticks()
-
+ 
     def activate_shield(self):
         """Ativa escudo."""
         self.shield = True
         self.shield_timer = pygame.time.get_ticks()
-
+ 
     def hit(self):
         """Processa dano.
-
+ 
         Returns:
             bool: True se ainda vivo.
         """
@@ -530,17 +601,20 @@ class Player(pygame.sprite.Sprite):
             self.shield = False
             self.invincible = True
             self.invincible_timer = pygame.time.get_ticks()
+            self.sound_manager.play("player_hit")
             return True
         self.lives -= 1
         self.invincible = True
         self.invincible_timer = pygame.time.get_ticks()
+        self.sound_manager.play("player_hit")
         return self.lives > 0
-
+ 
     def shoot(self):
         """Dispara tiros."""
         now = pygame.time.get_ticks()
         if now - self.last_shot >= SHOOT_DELAY:
             self.last_shot = now
+            self.sound_manager.play("shoot")
             if self.triple_shot:
                 b1 = Bullet(self.rect.centerx, self.rect.top, 0)
                 b2 = Bullet(self.rect.left + 5, self.rect.top + 10, -2)
@@ -552,10 +626,10 @@ class Player(pygame.sprite.Sprite):
                 bullet = Bullet(self.rect.centerx, self.rect.top, 0)
                 self.bullet_group.add(bullet)
                 self.all_sprites_group.add(bullet)
-
+ 
     def draw_shield(self, screen):
         """Desenha escudo visual.
-
+ 
         Args:
             screen: Superfície de desenho.
         """
@@ -563,7 +637,7 @@ class Player(pygame.sprite.Sprite):
             pulse = int(3 * math.sin(pygame.time.get_ticks() / 150))
             radius = max(PLAYER_WIDTH // 2, PLAYER_HEIGHT // 2) + 8 + pulse
             pygame.draw.circle(screen, LIGHT_BLUE, self.rect.center, radius, 2)
-
+ 
     def _clamp_to_screen(self):
         """Limita nave à tela."""
         if self.rect.left < 0:
@@ -574,19 +648,14 @@ class Player(pygame.sprite.Sprite):
             self.rect.top = 0
         if self.rect.bottom > SCREEN_HEIGHT:
             self.rect.bottom = SCREEN_HEIGHT
-
-
+ 
+ 
 class Bullet(pygame.sprite.Sprite):
-    """Projétil do jogador.
-
-    Attributes:
-        speed_y: Velocidade vertical.
-        speed_x: Velocidade horizontal.
-    """
-
+    """Projétil do jogador."""
+ 
     def __init__(self, x, y, speed_x=0):
-        """Inicializa o tiro.
-
+        """Inicializa tiro.
+ 
         Args:
             x: Posição X.
             y: Posição Y.
@@ -601,32 +670,27 @@ class Bullet(pygame.sprite.Sprite):
         self.rect.bottom = y
         self.speed_y = BULLET_SPEED
         self.speed_x = speed_x
-
+ 
     def update(self):
         """Move e remove se fora da tela."""
         self.rect.y += self.speed_y
         self.rect.x += self.speed_x
         if self.rect.bottom < 0 or self.rect.right < 0 or self.rect.left > SCREEN_WIDTH:
             self.kill()
-
-
+ 
+ 
 class Enemy(pygame.sprite.Sprite):
-    """Nave inimiga.
-
-    Attributes:
-        speed: Velocidade de descida.
-        wave_manager: Referência ao WaveManager.
-    """
-
+    """Nave inimiga."""
+ 
     COLORS = [RED, ORANGE, MAGENTA, GREEN]
-
+ 
     def __init__(self, min_speed, max_speed, wave_manager):
-        """Inicializa o inimigo.
-
+        """Inicializa inimigo.
+ 
         Args:
             min_speed: Velocidade mínima.
             max_speed: Velocidade máxima.
-            wave_manager: Referência ao WaveManager.
+            wave_manager: WaveManager.
         """
         super().__init__()
         self.color = random.choice(self.COLORS)
@@ -636,62 +700,45 @@ class Enemy(pygame.sprite.Sprite):
         self.rect.y = random.randint(-80, -ENEMY_HEIGHT)
         self.speed = random.uniform(min_speed, max_speed)
         self.wave_manager = wave_manager
-
+ 
     def _create_enemy_image(self):
-        """Cria sprite do inimigo (losango).
-
+        """Cria sprite do inimigo.
+ 
         Returns:
             pygame.Surface: Superfície do inimigo.
         """
         surface = pygame.Surface((ENEMY_WIDTH, ENEMY_HEIGHT), pygame.SRCALPHA)
         body_points = [
-            (ENEMY_WIDTH // 2, 0),
-            (ENEMY_WIDTH, ENEMY_HEIGHT // 2),
-            (ENEMY_WIDTH // 2, ENEMY_HEIGHT),
-            (0, ENEMY_HEIGHT // 2),
+            (ENEMY_WIDTH // 2, 0), (ENEMY_WIDTH, ENEMY_HEIGHT // 2),
+            (ENEMY_WIDTH // 2, ENEMY_HEIGHT), (0, ENEMY_HEIGHT // 2),
         ]
         pygame.draw.polygon(surface, self.color, body_points)
         inner_points = [
-            (ENEMY_WIDTH // 2, 6),
-            (ENEMY_WIDTH - 6, ENEMY_HEIGHT // 2),
-            (ENEMY_WIDTH // 2, ENEMY_HEIGHT - 6),
-            (6, ENEMY_HEIGHT // 2),
+            (ENEMY_WIDTH // 2, 6), (ENEMY_WIDTH - 6, ENEMY_HEIGHT // 2),
+            (ENEMY_WIDTH // 2, ENEMY_HEIGHT - 6), (6, ENEMY_HEIGHT // 2),
         ]
         pygame.draw.polygon(surface, DARK_GRAY, inner_points)
         pygame.draw.circle(surface, WHITE, (ENEMY_WIDTH // 2, ENEMY_HEIGHT // 2), 4)
         pygame.draw.circle(surface, RED, (ENEMY_WIDTH // 2, ENEMY_HEIGHT // 2), 2)
         return surface
-
+ 
     def update(self):
         """Move e remove se fora da tela."""
         self.rect.y += self.speed
         if self.rect.top > SCREEN_HEIGHT:
             self.wave_manager.enemy_escaped()
             self.kill()
-
-
+ 
+ 
 class Boss(pygame.sprite.Sprite):
-    """Chefe que aparece a cada 5 waves.
-
-    Attributes:
-        hp: Vida atual.
-        max_hp: Vida máxima.
-        speed: Velocidade horizontal.
-        direction: Direção (1 ou -1).
-        last_shot: Timestamp do último tiro.
-        shoot_delay: Intervalo entre tiros.
-        level: Nível do boss.
-        entering: Flag de entrada.
-        boss_bullets: Grupo de tiros.
-        all_sprites_group: Grupo geral.
-    """
-
+    """Chefe a cada 5 waves."""
+ 
     def __init__(self, level, boss_bullets, all_sprites_group):
-        """Inicializa o boss.
-
+        """Inicializa boss.
+ 
         Args:
-            level: Nível do boss.
-            boss_bullets: Grupo de tiros do boss.
+            level: Nível.
+            boss_bullets: Grupo de tiros.
             all_sprites_group: Grupo geral.
         """
         super().__init__()
@@ -709,10 +756,10 @@ class Boss(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.centerx = SCREEN_WIDTH // 2
         self.rect.bottom = -10
-
+ 
     def _create_boss_image(self):
         """Cria sprite do boss.
-
+ 
         Returns:
             pygame.Surface: Superfície do boss.
         """
@@ -736,10 +783,9 @@ class Boss(pygame.sprite.Sprite):
         pygame.draw.rect(surface, DARK_RED, (5, BOSS_HEIGHT - 20, 8, 15))
         pygame.draw.rect(surface, DARK_RED, (BOSS_WIDTH - 13, BOSS_HEIGHT - 20, 8, 15))
         for i in range(min(self.level, 3)):
-            y_line = 12 + i * 5
-            pygame.draw.line(surface, MAGENTA, (15, y_line), (BOSS_WIDTH - 15, y_line), 1)
+            pygame.draw.line(surface, MAGENTA, (15, 12 + i * 5), (BOSS_WIDTH - 15, 12 + i * 5), 1)
         return surface
-
+ 
     def update(self):
         """Atualiza posição e tiros."""
         if self.entering:
@@ -754,7 +800,7 @@ class Boss(pygame.sprite.Sprite):
             self.direction = 1
         self.rect.y = 30 + int(10 * math.sin(pygame.time.get_ticks() / 800))
         self._shoot()
-
+ 
     def _shoot(self):
         """Dispara tiros."""
         now = pygame.time.get_ticks()
@@ -773,10 +819,10 @@ class Boss(pygame.sprite.Sprite):
                 b5 = BossBullet(self.rect.right - 5, self.rect.bottom, 2, BOSS_BULLET_SPEED - 1)
                 self.boss_bullets.add(b4, b5)
                 self.all_sprites_group.add(b4, b5)
-
+ 
     def take_damage(self):
         """Reduz HP.
-
+ 
         Returns:
             bool: True se morreu.
         """
@@ -787,12 +833,12 @@ class Boss(pygame.sprite.Sprite):
             flash.fill((255, 0, 0, 80))
             self.image.blit(flash, (0, 0))
         return self.hp <= 0
-
+ 
     def draw_health_bar(self, screen):
         """Desenha barra de vida.
-
+ 
         Args:
-            screen: Superfície de desenho.
+            screen: Superfície.
         """
         if self.entering:
             return
@@ -803,35 +849,18 @@ class Boss(pygame.sprite.Sprite):
         pygame.draw.rect(screen, DARK_GRAY, (bar_x - 1, bar_y - 1, bar_width + 2, bar_height + 2))
         hp_ratio = self.hp / self.max_hp
         fill_width = int(bar_width * hp_ratio)
-        if hp_ratio > 0.5:
-            bar_color = GREEN
-        elif hp_ratio > 0.25:
-            bar_color = YELLOW
-        else:
-            bar_color = RED
+        bar_color = GREEN if hp_ratio > 0.5 else (YELLOW if hp_ratio > 0.25 else RED)
         pygame.draw.rect(screen, bar_color, (bar_x, bar_y, fill_width, bar_height))
         boss_font = pygame.font.SysFont("arial", 14)
         boss_text = boss_font.render(f"BOSS Lv.{self.level}", True, WHITE)
         screen.blit(boss_text, (SCREEN_WIDTH // 2 - boss_text.get_width() // 2, bar_y - 15))
-
-
+ 
+ 
 class BossBullet(pygame.sprite.Sprite):
-    """Projétil do boss.
-
-    Attributes:
-        speed_x: Velocidade horizontal.
-        speed_y: Velocidade vertical.
-    """
-
+    """Projétil do boss."""
+ 
     def __init__(self, x, y, speed_x, speed_y):
-        """Inicializa tiro do boss.
-
-        Args:
-            x: Posição X.
-            y: Posição Y.
-            speed_x: Velocidade X.
-            speed_y: Velocidade Y.
-        """
+        """Inicializa tiro do boss."""
         super().__init__()
         self.image = pygame.Surface((6, 10), pygame.SRCALPHA)
         pygame.draw.rect(self.image, RED, (0, 0, 6, 10))
@@ -841,32 +870,22 @@ class BossBullet(pygame.sprite.Sprite):
         self.rect.top = y
         self.speed_x = speed_x
         self.speed_y = speed_y
-
+ 
     def update(self):
-        """Move e remove se fora da tela."""
+        """Move e remove."""
         self.rect.y += self.speed_y
         self.rect.x += self.speed_x
         if self.rect.top > SCREEN_HEIGHT or self.rect.right < 0 or self.rect.left > SCREEN_WIDTH:
             self.kill()
-
-
+ 
+ 
 class PowerUp(pygame.sprite.Sprite):
-    """Power-up que cai pela tela.
-
-    Attributes:
-        kind: Tipo ('triple', 'shield' ou 'bomb').
-        speed: Velocidade de queda.
-    """
-
+    """Power-up."""
+ 
     TYPES = ["triple", "shield", "bomb"]
-
+ 
     def __init__(self, x, y):
-        """Inicializa power-up.
-
-        Args:
-            x: Posição X.
-            y: Posição Y.
-        """
+        """Inicializa power-up."""
         super().__init__()
         self.kind = random.choice(self.TYPES)
         self.image = self._create_powerup_image()
@@ -874,12 +893,12 @@ class PowerUp(pygame.sprite.Sprite):
         self.rect.centerx = x
         self.rect.centery = y
         self.speed = POWERUP_SPEED
-
+ 
     def _create_powerup_image(self):
         """Cria sprite do power-up.
-
+ 
         Returns:
-            pygame.Surface: Superfície do power-up.
+            pygame.Surface: Superfície.
         """
         surface = pygame.Surface((POWERUP_SIZE, POWERUP_SIZE), pygame.SRCALPHA)
         if self.kind == "triple":
@@ -898,37 +917,20 @@ class PowerUp(pygame.sprite.Sprite):
             pygame.draw.rect(surface, ORANGE, (6, 6, POWERUP_SIZE - 12, POWERUP_SIZE - 12))
             pygame.draw.rect(surface, YELLOW, (9, 9, POWERUP_SIZE - 18, POWERUP_SIZE - 18))
         return surface
-
+ 
     def update(self):
-        """Move e remove se fora da tela."""
+        """Move e remove."""
         self.rect.y += self.speed
         self.rect.x += int(math.sin(pygame.time.get_ticks() / 200) * 0.8)
         if self.rect.top > SCREEN_HEIGHT:
             self.kill()
-
-
+ 
+ 
 class Particle(pygame.sprite.Sprite):
-    """Partícula de explosão.
-
-    Attributes:
-        pos_x: Posição X (float).
-        pos_y: Posição Y (float).
-        vel_x: Velocidade X.
-        vel_y: Velocidade Y.
-        color: Cor.
-        radius: Raio atual.
-        initial_radius: Raio inicial.
-        spawn_time: Timestamp de criação.
-    """
-
+    """Partícula de explosão."""
+ 
     def __init__(self, x, y, color):
-        """Inicializa partícula.
-
-        Args:
-            x: Posição X.
-            y: Posição Y.
-            color: Cor.
-        """
+        """Inicializa partícula."""
         super().__init__()
         self.pos_x = float(x)
         self.pos_y = float(y)
@@ -941,7 +943,7 @@ class Particle(pygame.sprite.Sprite):
         self.radius = self.initial_radius
         self.spawn_time = pygame.time.get_ticks()
         self._update_image()
-
+ 
     def _update_image(self):
         """Redesenha partícula."""
         size = max(self.radius * 2, 1)
@@ -949,7 +951,7 @@ class Particle(pygame.sprite.Sprite):
         if self.radius >= 1:
             pygame.draw.circle(self.image, self.color, (self.radius, self.radius), self.radius)
         self.rect = self.image.get_rect(center=(int(self.pos_x), int(self.pos_y)))
-
+ 
     def update(self):
         """Move, encolhe e remove."""
         elapsed = pygame.time.get_ticks() - self.spawn_time
@@ -963,23 +965,16 @@ class Particle(pygame.sprite.Sprite):
         life_ratio = 1 - (elapsed / PARTICLE_LIFETIME)
         self.radius = max(int(self.initial_radius * life_ratio), 1)
         self._update_image()
-
-
+ 
+ 
 class Explosion:
     """Fábrica de explosões."""
-
+ 
     COLORS = [YELLOW, ORANGE, RED, WHITE]
-
+ 
     @staticmethod
     def create(x, y, all_sprites_group, big=False):
-        """Cria explosão.
-
-        Args:
-            x: Posição X.
-            y: Posição Y.
-            all_sprites_group: Grupo de sprites.
-            big: Explosão maior se True.
-        """
+        """Cria explosão."""
         count = EXPLOSION_PARTICLES * 3 if big else EXPLOSION_PARTICLES
         for _ in range(count):
             color = random.choice(Explosion.COLORS)
@@ -989,35 +984,15 @@ class Explosion:
                 particle.vel_y *= 2
                 particle.initial_radius = random.randint(3, 7)
             all_sprites_group.add(particle)
-
-
+ 
+ 
 # =============================================================================
 # CLASSE PRINCIPAL DO JOGO
 # =============================================================================
-
+ 
 class Game:
-    """Classe principal que gerencia o jogo.
-
-    Attributes:
-        screen: Superfície principal.
-        clock: Relógio de FPS.
-        running: Flag de execução.
-        state: Estado atual.
-        background: Sistema de fundo parallax.
-        all_sprites: Todos os sprites.
-        bullets: Tiros do jogador.
-        enemies: Inimigos.
-        powerups: Power-ups.
-        boss_bullets: Tiros do boss.
-        wave_manager: Gerenciador de waves.
-        boss: Boss atual (ou None).
-        score: Pontuação.
-        final_score: Pontuação final.
-        final_wave: Wave final.
-        bomb_flash: Timestamp do flash.
-        menu_selection: Opção do menu.
-    """
-
+    """Classe principal do jogo."""
+ 
     def __init__(self):
         """Inicializa o jogo."""
         pygame.init()
@@ -1032,17 +1007,16 @@ class Game:
         self.font_medium = pygame.font.SysFont("arial", 28)
         self.font_big = pygame.font.SysFont("arial", 52)
         self.font_title = pygame.font.SysFont("arial", 60, bold=True)
-
         self.background = Background()
+        self.sound_manager = SoundManager()
         self.final_score = 0
         self.final_wave = 0
         self.menu_selection = 0
-
+ 
     def run(self):
         """Loop principal."""
         while self.running:
             self.clock.tick(FPS)
-
             if self.state == STATE_MENU:
                 self._menu_events()
                 self.background.update()
@@ -1059,13 +1033,12 @@ class Game:
                 self._game_over_events()
                 self.background.update()
                 self._draw_game_over()
-
         pygame.quit()
-
+ 
     # =========================================================================
     # MENU
     # =========================================================================
-
+ 
     def _menu_events(self):
         """Eventos do menu."""
         for event in pygame.event.get():
@@ -1074,9 +1047,12 @@ class Game:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP:
                     self.menu_selection = (self.menu_selection - 1) % 3
+                    self.sound_manager.play("menu_select")
                 elif event.key == pygame.K_DOWN:
                     self.menu_selection = (self.menu_selection + 1) % 3
+                    self.sound_manager.play("menu_select")
                 elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                    self.sound_manager.play("menu_confirm")
                     if self.menu_selection == 0:
                         self._start_new_game()
                     elif self.menu_selection == 1:
@@ -1085,12 +1061,11 @@ class Game:
                         self.running = False
                 elif event.key == pygame.K_ESCAPE:
                     self.running = False
-
+ 
     def _draw_menu(self):
         """Desenha menu."""
         self.screen.fill(BLACK)
         self.background.draw(self.screen)
-
         title_y = 150
         glow = int(30 * math.sin(pygame.time.get_ticks() / 500)) + 225
         title_color = (0, glow, glow)
@@ -1098,7 +1073,6 @@ class Game:
         self.screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, title_y))
         title_text2 = self.font_title.render("SHOOTER", True, title_color)
         self.screen.blit(title_text2, (SCREEN_WIDTH // 2 - title_text2.get_width() // 2, title_y + 65))
-
         nave_y = title_y + 155
         nave_points = [
             (SCREEN_WIDTH // 2, nave_y),
@@ -1107,7 +1081,6 @@ class Game:
         ]
         pygame.draw.polygon(self.screen, CYAN, nave_points)
         pygame.draw.circle(self.screen, WHITE, (SCREEN_WIDTH // 2, nave_y + 14), 4)
-
         options = ["JOGAR", "INSTRUÇÕES", "SAIR"]
         menu_y = 420
         for i, option in enumerate(options):
@@ -1121,15 +1094,14 @@ class Game:
                 suffix = "  "
             text = self.font_medium.render(f"{prefix}{option}{suffix}", True, color)
             self.screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, menu_y + i * 50))
-
         hint = self.font_small.render("Use SETAS para navegar e ENTER para selecionar", True, GRAY)
         self.screen.blit(hint, (SCREEN_WIDTH // 2 - hint.get_width() // 2, SCREEN_HEIGHT - 40))
         pygame.display.flip()
-
+ 
     # =========================================================================
     # INSTRUÇÕES
     # =========================================================================
-
+ 
     def _instructions_events(self):
         """Eventos das instruções."""
         for event in pygame.event.get():
@@ -1137,22 +1109,20 @@ class Game:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE or event.key == pygame.K_RETURN:
+                    self.sound_manager.play("menu_confirm")
                     self.state = STATE_MENU
-
+ 
     def _draw_instructions(self):
         """Desenha instruções."""
         self.screen.fill(BLACK)
         self.background.draw(self.screen)
-
         title = self.font_big.render("INSTRUÇÕES", True, CYAN)
         self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 40))
-
         y = 130
         sections = [
             ("CONTROLES", CYAN, [
                 ("Setas / WASD", "Movimentar a nave"),
-                ("Espaço", "Atirar"),
-                ("ESC", "Voltar ao menu"),
+                ("Espaço", "Atirar"), ("ESC", "Voltar ao menu"),
             ]),
             ("POWER-UPS", YELLOW, [
                 ("Triângulo Amarelo", "Tiro triplo (5s)"),
@@ -1187,15 +1157,14 @@ class Game:
                     self.screen.blit(desc_text, (SCREEN_WIDTH // 2 - desc_text.get_width() // 2, y))
                 y += 22
             y += 10
-
         back_text = self.font.render("Pressione ENTER ou ESC para voltar", True, GRAY)
         self.screen.blit(back_text, (SCREEN_WIDTH // 2 - back_text.get_width() // 2, SCREEN_HEIGHT - 50))
         pygame.display.flip()
-
+ 
     # =========================================================================
     # GAMEPLAY
     # =========================================================================
-
+ 
     def _start_new_game(self):
         """Inicia nova partida."""
         self.all_sprites = pygame.sprite.Group()
@@ -1203,7 +1172,7 @@ class Game:
         self.enemies = pygame.sprite.Group()
         self.powerups = pygame.sprite.Group()
         self.boss_bullets = pygame.sprite.Group()
-        self.player = Player(self.bullets, self.all_sprites)
+        self.player = Player(self.bullets, self.all_sprites, self.sound_manager)
         self.all_sprites.add(self.player)
         self.wave_manager = WaveManager()
         self.wave_manager.start_next_wave()
@@ -1211,7 +1180,9 @@ class Game:
         self.score = 0
         self.bomb_flash = 0
         self.state = STATE_PLAYING
-
+        self.sound_manager.play_music()
+        self.sound_manager.play("wave_start")
+ 
     def _game_events(self):
         """Eventos do jogo."""
         for event in pygame.event.get():
@@ -1219,30 +1190,29 @@ class Game:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
+                    self.sound_manager.stop_music()
                     self.state = STATE_MENU
                 elif event.key == pygame.K_SPACE:
                     self.player.shoot()
-
+ 
     def _game_update(self):
         """Atualiza jogo."""
         self.all_sprites.update()
         self.background.update()
-
         if self.wave_manager.is_wave_complete():
             self.boss = None
             self.wave_manager.start_next_wave()
-
+            self.sound_manager.play("wave_start")
         if not self.wave_manager.is_transitioning():
             if self.wave_manager.is_boss_wave:
                 if self.wave_manager.should_spawn_boss():
                     self._spawn_boss()
             else:
                 self._spawn_enemies()
-
         self._check_collisions()
         self._check_powerup_collisions()
         self._check_boss_collisions()
-
+ 
     def _spawn_enemies(self):
         """Spawna inimigos."""
         if self.wave_manager.should_spawn(len(self.enemies)):
@@ -1253,13 +1223,13 @@ class Game:
             )
             self.enemies.add(enemy)
             self.all_sprites.add(enemy)
-
+ 
     def _spawn_boss(self):
         """Spawna boss."""
         level = self.wave_manager.get_boss_level()
         self.boss = Boss(level, self.boss_bullets, self.all_sprites)
         self.all_sprites.add(self.boss)
-
+ 
     def _check_collisions(self):
         """Colisões: tiro x inimigo, inimigo x jogador."""
         hits = pygame.sprite.groupcollide(self.bullets, self.enemies, True, True)
@@ -1267,36 +1237,40 @@ class Game:
             for enemy in enemies_hit:
                 self.score += 100
                 self.wave_manager.enemy_killed()
+                self.sound_manager.play("explosion")
                 Explosion.create(enemy.rect.centerx, enemy.rect.centery, self.all_sprites)
                 if random.randint(1, 100) <= POWERUP_SPAWN_CHANCE:
                     powerup = PowerUp(enemy.rect.centerx, enemy.rect.centery)
                     self.powerups.add(powerup)
                     self.all_sprites.add(powerup)
-
         if not self.player.invincible:
             enemy_hits = pygame.sprite.spritecollide(self.player, self.enemies, True)
             if enemy_hits:
                 for enemy in enemy_hits:
                     self.wave_manager.enemy_killed()
+                    self.sound_manager.play("explosion")
                     Explosion.create(enemy.rect.centerx, enemy.rect.centery, self.all_sprites)
                 alive = self.player.hit()
                 if not alive:
                     Explosion.create(self.player.rect.centerx, self.player.rect.centery, self.all_sprites)
                     self.final_score = self.score
                     self.final_wave = self.wave_manager.wave_number
+                    self.sound_manager.play("game_over")
+                    self.sound_manager.stop_music()
                     self.state = STATE_GAME_OVER
-
+ 
     def _check_boss_collisions(self):
         """Colisões com boss."""
         if self.boss is None or not self.boss.alive():
             return
-
         boss_hits = pygame.sprite.spritecollide(self.boss, self.bullets, True)
         for bullet in boss_hits:
+            self.sound_manager.play("boss_hit")
             dead = self.boss.take_damage()
             if dead:
                 self.score += 500
                 self.wave_manager.boss_defeated = True
+                self.sound_manager.play("boss_death")
                 Explosion.create(self.boss.rect.centerx, self.boss.rect.centery, self.all_sprites, big=True)
                 Explosion.create(self.boss.rect.left + 10, self.boss.rect.top + 10, self.all_sprites, big=True)
                 Explosion.create(self.boss.rect.right - 10, self.boss.rect.bottom - 10, self.all_sprites, big=True)
@@ -1308,7 +1282,6 @@ class Game:
                 for b in self.boss_bullets:
                     b.kill()
                 return
-
         if not self.player.invincible:
             boss_bullet_hits = pygame.sprite.spritecollide(self.player, self.boss_bullets, True)
             if boss_bullet_hits:
@@ -1317,75 +1290,75 @@ class Game:
                     Explosion.create(self.player.rect.centerx, self.player.rect.centery, self.all_sprites)
                     self.final_score = self.score
                     self.final_wave = self.wave_manager.wave_number
+                    self.sound_manager.play("game_over")
+                    self.sound_manager.stop_music()
                     self.state = STATE_GAME_OVER
-
         if not self.player.invincible and self.boss and pygame.sprite.collide_rect(self.player, self.boss):
             alive = self.player.hit()
             if not alive:
                 Explosion.create(self.player.rect.centerx, self.player.rect.centery, self.all_sprites)
                 self.final_score = self.score
                 self.final_wave = self.wave_manager.wave_number
+                self.sound_manager.play("game_over")
+                self.sound_manager.stop_music()
                 self.state = STATE_GAME_OVER
-
+ 
     def _check_powerup_collisions(self):
         """Coleta de power-ups."""
         powerup_hits = pygame.sprite.spritecollide(self.player, self.powerups, True)
         for powerup in powerup_hits:
+            self.sound_manager.play("powerup")
             if powerup.kind == "triple":
                 self.player.activate_triple_shot()
             elif powerup.kind == "shield":
                 self.player.activate_shield()
             elif powerup.kind == "bomb":
                 self._activate_bomb()
-
+ 
     def _activate_bomb(self):
         """Ativa bomba."""
         self.bomb_flash = pygame.time.get_ticks()
-        for enemy in self.enemies:
+        self.sound_manager.play("bomb")
+        for enemy in list(self.enemies):
             self.score += 100
             self.wave_manager.enemy_killed()
             Explosion.create(enemy.rect.centerx, enemy.rect.centery, self.all_sprites, big=True)
-        self.enemies.empty()
+            enemy.kill()
         if self.boss and self.boss.alive():
             for _ in range(5):
                 dead = self.boss.take_damage()
                 if dead:
                     self.score += 500
                     self.wave_manager.boss_defeated = True
+                    self.sound_manager.play("boss_death")
                     Explosion.create(self.boss.rect.centerx, self.boss.rect.centery, self.all_sprites, big=True)
                     self.boss.kill()
                     self.boss = None
                     for b in self.boss_bullets:
                         b.kill()
                     break
-
+ 
     def _game_draw(self):
         """Desenha o jogo."""
         self.screen.fill(BLACK)
         self.background.draw(self.screen)
-
         if pygame.time.get_ticks() - self.bomb_flash < BOMB_FLASH_DURATION:
             alpha = 255 * (1 - (pygame.time.get_ticks() - self.bomb_flash) / BOMB_FLASH_DURATION)
             flash_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
             flash_surface.fill(WHITE)
             flash_surface.set_alpha(int(alpha))
             self.screen.blit(flash_surface, (0, 0))
-
         self.all_sprites.draw(self.screen)
         self.player.draw_shield(self.screen)
-
         if self.boss and self.boss.alive():
             self.boss.draw_health_bar(self.screen)
-
         self._draw_hud()
-
         if self.wave_manager.is_transitioning():
             self._draw_wave_transition()
-
         pygame.display.flip()
-
+ 
     def _draw_wave_transition(self):
-        """Texto de transição de wave."""
+        """Texto de transição."""
         elapsed = pygame.time.get_ticks() - self.wave_manager.transition_start
         if elapsed < 500:
             alpha = int(255 * (elapsed / 500))
@@ -1393,33 +1366,27 @@ class Game:
             alpha = int(255 * ((WAVE_TRANSITION_DURATION - elapsed) / 500))
         else:
             alpha = 255
-
         if self.wave_manager.is_boss_wave:
             wave_text = self.font_big.render(f"WAVE {self.wave_manager.wave_number}", True, RED)
             subtitle = self.font_medium.render("BOSS INCOMING!", True, YELLOW)
         else:
             wave_text = self.font_big.render(f"WAVE {self.wave_manager.wave_number}", True, CYAN)
             subtitle = self.font_medium.render("Prepare-se!", True, WHITE)
-
         wave_text.set_alpha(alpha)
         subtitle.set_alpha(alpha)
         self.screen.blit(wave_text, (SCREEN_WIDTH // 2 - wave_text.get_width() // 2, SCREEN_HEIGHT // 3))
         self.screen.blit(subtitle, (SCREEN_WIDTH // 2 - subtitle.get_width() // 2, SCREEN_HEIGHT // 3 + 55))
-
+ 
     def _draw_hud(self):
         """Desenha HUD."""
         fps_text = self.font.render(f"FPS: {int(self.clock.get_fps())}", True, WHITE)
         self.screen.blit(fps_text, (5, 5))
-
         score_text = self.font.render(f"Pontuação: {self.score}", True, WHITE)
         self.screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 5))
-
         lives_text = self.font.render(f"Vidas: {self.player.lives}", True, WHITE)
         self.screen.blit(lives_text, (SCREEN_WIDTH - lives_text.get_width() - 10, 5))
-
         wave_text = self.font.render(f"Wave: {self.wave_manager.wave_number}", True, CYAN)
         self.screen.blit(wave_text, (SCREEN_WIDTH - wave_text.get_width() - 10, 28))
-
         y_indicator = 30
         if self.player.triple_shot:
             remaining = max(0, TRIPLE_SHOT_DURATION - (pygame.time.get_ticks() - self.player.triple_shot_timer))
@@ -1430,11 +1397,11 @@ class Game:
             remaining = max(0, SHIELD_DURATION - (pygame.time.get_ticks() - self.player.shield_timer))
             text = self.font.render(f"Escudo: {remaining // 1000 + 1}s", True, LIGHT_BLUE)
             self.screen.blit(text, (5, y_indicator))
-
+ 
     # =========================================================================
     # GAME OVER
     # =========================================================================
-
+ 
     def _game_over_events(self):
         """Eventos do game over."""
         for event in pygame.event.get():
@@ -1442,44 +1409,40 @@ class Game:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                    self.sound_manager.play("menu_confirm")
                     self._start_new_game()
                 elif event.key == pygame.K_ESCAPE:
                     self.state = STATE_MENU
-
+ 
     def _draw_game_over(self):
         """Desenha game over."""
         self.screen.fill(BLACK)
         self.background.draw(self.screen)
-
         pulse = int(30 * math.sin(pygame.time.get_ticks() / 400)) + 225
         go_color = (pulse, 0, 0)
         go_text = self.font_title.render("GAME OVER", True, go_color)
         self.screen.blit(go_text, (SCREEN_WIDTH // 2 - go_text.get_width() // 2, 150))
-
         stats_y = 300
         score_label = self.font.render("PONTUAÇÃO", True, GRAY)
         self.screen.blit(score_label, (SCREEN_WIDTH // 2 - score_label.get_width() // 2, stats_y))
         score_value = self.font_big.render(f"{self.final_score}", True, YELLOW)
         self.screen.blit(score_value, (SCREEN_WIDTH // 2 - score_value.get_width() // 2, stats_y + 25))
-
         wave_label = self.font.render("WAVE ALCANÇADA", True, GRAY)
         self.screen.blit(wave_label, (SCREEN_WIDTH // 2 - wave_label.get_width() // 2, stats_y + 100))
         wave_value = self.font_big.render(f"{self.final_wave}", True, CYAN)
         self.screen.blit(wave_value, (SCREEN_WIDTH // 2 - wave_value.get_width() // 2, stats_y + 125))
-
         options_y = 550
         play_text = self.font_medium.render("ENTER - Jogar novamente", True, GREEN)
         self.screen.blit(play_text, (SCREEN_WIDTH // 2 - play_text.get_width() // 2, options_y))
         menu_text = self.font_medium.render("ESC - Menu principal", True, GRAY)
         self.screen.blit(menu_text, (SCREEN_WIDTH // 2 - menu_text.get_width() // 2, options_y + 40))
-
         pygame.display.flip()
-
-
+ 
+ 
 # =============================================================================
 # PONTO DE ENTRADA
 # =============================================================================
-
+ 
 if __name__ == "__main__":
     game = Game()
     game.run()
