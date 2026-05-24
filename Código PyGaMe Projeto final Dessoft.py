@@ -3,6 +3,11 @@ Space Shooter - Jogo de nave estilo Shoot 'em Up.
 
 Desenvolvido em Python com PyGame para o Projeto Final de Design de Software - Insper.
 
+Autores:
+    Victor Mota
+    Felipe Schenkman
+    Gustavo Schmidt
+
 Execute este arquivo para iniciar o jogo:
     python main.py
 """
