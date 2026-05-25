@@ -115,9 +115,10 @@ O jogo foi desenvolvido utilizando orientação a objetos com as seguintes class
 - **SoundManager** — Carrega e toca efeitos sonoros e música
 - **Leaderboard** — Ranking persistente salvo em JSON
 
-## Vídeo(ainda falta adicionar)
+## Vídeo
 
-[Link do vídeo demonstrativo](URL_DO_VIDEO)
+[Link do vídeo demonstrativo](https://youtube.com/shorts/6Xm5386h-t4?feature=share)
+
 
 ## Uso de IA Generativa
 
